@@ -1,1 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Number-Machine Game</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
 
+<style>
+/* --- RESET --- */
+*{margin:0;padding:0;box-sizing:border-box}
+
+/* --- THEME --- */
+:root{
+  --bg1:#173bff;--bg2:#6929ff;--text:#ffffff;--muted:#c5c5ff;
+  --accent:#ffda4e;--accent-dk:#f5c500;--red:#ff497a;
+  font-family:'Inter',system-ui,sans-serif;
+  font-size:clamp(16px,1.9vw,24px);
+}
+
+/* --- PAGE FRAME --- */
+body{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));color:var(--text);
+  padding:3vh 3vw;text-align:center;
+}
+#app{width:100%;max-width:760px}
+
+/* --- HEADERS & INFO BAR --- */
+h1{font-size:2.1rem;font-weight:700;margin-bottom:.5rem}
+#note{font-size:.9rem;color:var(--muted);margin-bottom:1.2rem}
+
+#info{
+  display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;
+  font-size:.85rem;color:var(--muted);margin-bottom:.8rem}
+#info span{font-weight:700;color:var(--text)}
+
+/* --- MACHINE DIAGRAM --- */
+.machine{
+  display:grid;grid-auto-flow:column;gap:1.1rem;align-items:center;justify-content:center;
+  margin-bottom:1.6rem;font-size:1.45rem;font-weight:700;user-select:none;}
+.side{display:flex;flex-direction:column;align-items:center;min-width:7.2rem}
+.side small{font-size:.65rem;color:var(--muted);margin-bottom:.2rem}
+.unknown{color:var(--red)}
+.box{
+  border:2px solid var(--text);border-radius:12px;
+  min-width:7.2rem;padding:.55rem 1.7rem;
+  background:rgba(255,255,255,.08);backdrop-filter:blur(4px)}
+.arrow{font-size:1.5rem}
+
+/* --- INPUT & BUTTONS --- */
+#answer{
+  width:100%;max-width:420px;margin:0 auto 1.1rem;
+  padding:.75rem 1rem;border:none;border-radius:10px;
+  background:rgba(255,255,255,.18);backdrop-filter:blur(4px);
+  font-size:1rem;color:var(--text);text-align:center;}
+#answer::placeholder{color:var(--muted)}
+
+#btnRow{
+  display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;margin-bottom:1rem}
+button{
+  flex:1 1 9rem;max-width:170px;
+  padding:.8rem 1.1rem;border:none;border-radius:12px;cursor:pointer;
+  font-size:1rem;font-weight:700;transition:transform .15s,background .15s;
+  box-shadow:0 3px 10px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+button.primary{background:var(--accent);color:#000}
+button.secondary{background:#5b5bff;color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+button:not(:disabled):hover{background:var(--accent-dk)}
+button:not(:disabled):active{transform:scale(.95)}
+.hide{display:none}
+
+/* --- FEEDBACK --- */
+#feedback{min-height:1.5em;font-weight:700}
+
+/* --- OVERLAY MENU --- */
+#overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.9);
+  display:flex;justify-content:center;align-items:center;z-index:999}
+.panel{
+  background:#1e293b;
+  padding:1.4rem 1.6rem;            /* smaller panel */
+  width:92%;max-width:260px;        /* smaller width */
+  border-radius:12px;
+  box-shadow:0 6px 20px rgba(0,0,0,.6);
+  color:var(--text);
+  display:flex;flex-direction:column;gap:.9rem}
+.panel h2{margin:0;text-align:center;color:var(--accent);font-size:1.3rem}
+.panel label{font-weight:600;font-size:.9rem}
+.panel input{width:100%;padding:.5rem;border:none;border-radius:8px;margin-top:.2rem}
+.grp{display:none;flex-direction:column;gap:.3rem;margin-left:.5rem}
+.grp.active{display:flex}
+.menu-btn{
+  padding:.65rem 1.4rem;border:none;border-radius:10px;background:var(--accent);
+  color:#0f172a;font-weight:700;font-size:1rem;cursor:pointer;transition:.15s}
+.menu-btn:hover{transform:translateY(-2px)}
+</style>
+</head>
+<body>
+
+<!-- ===== MENU ===== -->
+<div id="overlay">
+  <div class="panel">
+    <h2>Start Game</h2>
+
+    <label>Your name</label>
+    <input id="nameInput" type="text" placeholder="(optional)">
+
+    <label>Mode</label>
+    <label><input type="radio" name="mode" value="timer" checked> Timed</label>
+    <label><input type="radio" name="mode" value="target"> Target score</label>
+
+    <div id="timerGrp" class="grp active">
+      <label><input type="radio" name="tval" value="300"> 5 min</label>
+      <label><input type="radio" name="tval" value="600" checked> 10 min</label>
+      <label><input type="radio" name="tval" value="900"> 15 min</label>
+      <label><input type="radio" name="tval" value="none"> No limit</label>
+    </div>
+
+    <div id="targetGrp" class="grp">
+      <label for="goalInput">Target score</label>
+      <input id="goalInput" type="number" min="1" placeholder="e.g. 20">
+    </div>
+
+    <button id="startBtn" class="menu-btn">Start</button>
+  </div>
+</div>
+
+<!-- ===== GAME UI ===== -->
+<div id="app" class="hide">
+  <h1 id="title">🔢 Number-Machine Game</h1>
+  <p id="note">Use a calculator if you like, and give answers to two decimal places where appropriate.</p>
+
+  <div id="info">
+    <div>⏱ <span id="timer">--:--</span></div>
+    <div>⭐ Score <span id="score">0</span></div>
+    <div>🏆 Goal <span id="goal">—</span></div>
+  </div>
+
+  <div id="machine"></div>
+
+  <input type="number" id="answer" placeholder="Enter answer">
+  <div id="btnRow">
+    <button id="submitBtn" class="primary">Submit</button>
+    <button id="skipBtn"   class="secondary">Skip</button>
+    <button id="nextBtn"   class="primary hide">Next</button>
+  </div>
+
+  <p id="feedback"></p>
+</div>
+
+<script>
+/* ---- helpers ---- */
+const $=s=>document.querySelector(s);
+const ri=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+
+/* ---- toggle groups ---- */
+document.querySelectorAll('input[name="mode"]').forEach(r=>{
+  r.onchange=()=>{
+    const timer=r.value==="timer";
+    $('#timerGrp').classList.toggle('active',timer);
+    $('#targetGrp').classList.toggle('active',!timer);
+  };
+});
+
+/* ---- game state ---- */
+let round,score,flip,current,tLeft,tickID,goal;
+
+/* ---- machine builder ---- */
+function machine(){
+  const op1=Math.random()<.5?'×':'÷';
+  const op2=Math.random()<.5?'+':'−';
+  const m=ri(2,9),k=ri(1,9);
+  const f=x=>{let y=op1==='×'?x*m:x/m; y=op2==='+'?y+k:y-k; return y;};
+  return{op1,op2,m,k,f};
+}
+
+/* ---- question ---- */
+function newQ(){
+  const mach=machine();
+  const type=flip?'output':'input'; flip=!flip;
+  let x,given,correct;
+  if(type==='output'){
+    x=mach.op1==='÷'?ri(-10,10)*mach.m:ri(-20,20);
+    given=x;correct=mach.f(x);
+  }else{
+    x=mach.op1==='÷'?ri(-10,10)*mach.m:ri(-20,20);
+    given=mach.f(x);correct=x;
+  }
+  current={...mach,type,given,correct};
+}
+
+/* ---- render ---- */
+function render(){
+  const {op1,op2,m,k,type,given}=current;
+  const side=(l,v)=>`<div class="side"><small>${l}</small><span class="${v==='?'?'unknown':''}">${v}</span></div>`;
+  $('#machine').innerHTML=`
+    <div class="machine">
+      ${side('Input',type==='output'?given:'?')}
+      <span class="arrow">➜</span><div class="box">${op1}${m}</div>
+      <span class="arrow">➜</span><div class="box">${op2}${k}</div>
+      <span class="arrow">➜</span>
+      ${side('Output',type==='input'?given:'?')}
+    </div>`;
+  $('#score').textContent=score;
+}
+
+/* ---- timer ---- */
+function showTime(){
+  if(tLeft===null){$('#timer').textContent='∞';return;}
+  const m=Math.floor(tLeft/60),s=tLeft%60;
+  $('#timer').textContent=`${m}:${s<10?'0'+s:s}`;
+}
+function tick(){
+  if(tLeft===null)return;
+  if(--tLeft<0){finish('⏰ Time\'s up!');}else showTime();
+}
+
+/* ---- flow ---- */
+function prep(){
+  render(); $('#answer').value=''; $('#feedback').textContent='';
+  $('#submitBtn').disabled=false; $('#skipBtn').classList.remove('hide');
+  $('#nextBtn').classList.add('hide'); $('#answer').focus();
+}
+function mark(ok){
+  if(ok)score++; $('#score').textContent=score;
+  $('#submitBtn').disabled=true; $('#skipBtn').classList.add('hide');
+  $('#nextBtn').classList.remove('hide');
+  if(goal!==null && score>=goal)finish('🏆 Goal reached!');
+}
+function checkAns(){
+  const v=$('#answer').value.trim(); if(!v)return;
+  const u=Math.round(parseFloat(v)*100)/100;
+  const ok=Math.abs(u-current.correct)<0.01;
+  $('#feedback').textContent=ok?'✅ Correct!':`❌ ${current.correct.toFixed(2)} was right`;
+  mark(ok);
+}
+function skip(){ $('#feedback').textContent='⏩ Skipped'; mark(false);}
+function next(){
+  round++; if(round>=10){finish('🏁 Round finished');return;}
+  newQ(); prep();
+}
+function finish(msg){
+  clearInterval(tickID);
+  $('#machine').innerHTML=`<p style="font-size:1.6rem">${msg}<br><strong>${score}/10</strong></p>`;
+  $('#answer').classList.add('hide'); $('#submitBtn').classList.add('hide'); $('#skipBtn').classList.add('hide');
+  $('#nextBtn').textContent='Play again'; $('#nextBtn').classList.remove('hide');
+}
+
+/* ---- start ---- */
+$('#startBtn').onclick=()=>{
+  const n=$('#nameInput').value.trim();
+  if(n) $('#title').textContent=`🔢 Good luck, ${n}!`;
+
+  const mode=document.querySelector('input[name="mode"]:checked').value;
+  if(mode==='timer'){
+    const v=document.querySelector('input[name="tval"]:checked').value;
+    tLeft=v==='none'?null:+v; goal=null; $('#goal').textContent='—';
+  }else{
+    const g=parseInt($('#goalInput').value,10);
+    if(isNaN(g)||g<1){alert('Enter a positive target score');return;}
+    goal=g; $('#goal').textContent=goal; tLeft=null;
+  }
+  showTime();
+
+  $('#overlay').style.display='none'; $('#app').classList.remove('hide');
+
+  round=0;score=0;flip=true;
+  $('#answer').classList.remove('hide');$('#submitBtn').classList.remove('hide');
+  $('#nextBtn').textContent='Next';
+
+  clearInterval(tickID); if(tLeft!==null)tickID=setInterval(tick,1000);
+
+  newQ(); prep();
+};
+
+/* ---- controls ---- */
+$('#submitBtn').onclick=checkAns;
+$('#skipBtn').onclick=skip;
+$('#answer').addEventListener('keyup',e=>{if(e.key==='Enter')checkAns();});
+$('#nextBtn').onclick=()=>{
+  if($('#nextBtn').textContent==='Play again'){
+    round=0;score=0;flip=true;
+    $('#answer').classList.remove('hide');$('#submitBtn').classList.remove('hide');
+    $('#nextBtn').textContent='Next'; newQ(); prep(); return;
+  }
+  next();
+};
+</script>
+</body>
+</html>
